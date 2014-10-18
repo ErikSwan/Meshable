@@ -79,8 +79,8 @@ void setup() {
   radio.setCRCLength(RF24_CRC_16); // 16-bit CRC
   radio.setChannel(80); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
   radio.setRetries(200, 5); // set the delay and number of retries upon failed transmit
-  radio.openReadingPipe(0, multi_addr); // Open this address
-  radio.openReadingPipe(0, this_node_address); // true node address
+  radio.openReadingPipe(1, multi_addr); // Open this address
+  radio.openReadingPipe(2, this_node_address); // true node address
   radio.startListening(); // Start listening on opened address
 
   // Shift register pin initializations
