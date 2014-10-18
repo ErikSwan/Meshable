@@ -295,8 +295,8 @@ void handlePayload(struct Payload * myPayload) {
   Serial.println(myPayload->command);
   Serial.print("Payload address: 0x");
   Serial.println(myPayload->address, HEX);
-  Serial.print("Payload data: ");
-  Serial.println(myPayload->data);
+  Serial.print("Payload data: 0x");
+  Serial.println(myPayload->data, HEX);
   
   Serial.print("last_payload payload_id is ");
   Serial.println(last_payload->payload_id);
