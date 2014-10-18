@@ -280,10 +280,10 @@ void handleSerialData(char inData[], byte index) {
 // Grab message received by nRF for this node
 void handlePayload(struct Payload * myPayload) {
   
-  Serial.println('Handling payload...');
+  Serial.println("Handling payload...");
   
   if(myPayload->address == multi_addr || myPayload->address == this_node_address) {
-    Serial.print('Payload received for address 0x');
+    Serial.print("Payload received for address 0x");
     Serial.println(myPayload->address, HEX);
     switch(myPayload->command) {
       case PING:
@@ -306,14 +306,14 @@ void handlePayload(struct Payload * myPayload) {
         break;
   
       default:
-        Serial.println(" Invalid command received.");
+        Serial.println("Invalid command received.");
         break;
     }
   }
   
-  Serial.print('myPayload payload_id is ');
+  Serial.print("myPayload payload_id is ");
   Serial.println(myPayload->payload_id);
-  Serial.print('last_payload payload_id is ');
+  Serial.print("last_payload payload_id is ");
   Serial.println(last_payload->payload_id);
   
   if(myPayload->payload_id != last_payload->payload_id) {
