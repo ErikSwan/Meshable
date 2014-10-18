@@ -26,6 +26,13 @@
 #include <SPI.h>
 #include <EEPROM.h>
 
+typedef struct Payload { // Payload structure
+  byte payload_id; // random number
+  byte command;
+  uint16_t address; // reserved for future use
+  char data[28]; 
+} Payload;
+
 void welcomeMessage(void);
 void printHelpText(void);
 void printPrompt(void);
@@ -35,7 +42,7 @@ void serialRead(void);
 void handleSerialData(char[], byte);
 
 void setValue(word);
-void handlePayload(Payload *);
+void handlePayload(struct Payload *);
 
 void ledDisplay(byte);
 void displayDemo();
@@ -56,13 +63,6 @@ uint16_t multi_addr = 0x2bc0; // multi cast address
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
 
 uint16_t this_node_address = (EEPROM.read(0) << 8) | EEPROM.read(1); // Radio address for this node
-
-typedef struct Payload { // Payload structure
-  byte payload_id; // random number
-  byte command;
-  uint16_t address; // reserved for future use
-  char data[28]; 
-} Payload;
 
 // This runs once on boot
 void setup() {
@@ -259,9 +259,10 @@ void handleSerialData(char inData[], byte index) {
       Serial.println(" Invalid syntax.");
     }
   } else if (strcmp(words[0], "multi") == 0) {
+      byte payload_id = random(255);
       // radio.setAutoAck(false);
       byte led_patt = (byte) atoi(words[1]);
-      Payload myPayload = {payload_id, LED, TOaddr, {led_patt}};
+      Payload myPayload = {payload_id, LED, 0x0000, {led_patt}};
       size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
 
       Serial.println("multicast");
@@ -275,7 +276,7 @@ void handleSerialData(char inData[], byte index) {
 
 
 // Grab message received by nRF for this node
-void handlePayload(Payload * myPayload) {
+void handlePayload(struct Payload * myPayload) {
   switch(myPayload->command) {
 
     case PING:
