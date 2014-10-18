@@ -261,7 +261,7 @@ void handleSerialData(char inData[], byte index) {
   } else if (strcmp(words[0], "multi") == 0) {
       // radio.setAutoAck(false);
       byte led_patt = (byte) atoi(words[1]);
-      struct payload myPayload = {LED, led_patt, {'\0'}};
+      Payload myPayload = {payload_id, LED, TOaddr, {led_patt}};
       size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
 
       Serial.println("multicast");
