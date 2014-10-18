@@ -182,6 +182,8 @@ void handleSerialData(char inData[], byte index) {
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
         radio.write(&myPayload, sizeof(myPayload));
+        Serial.print("Sending payload with id ");
+        Serial.println(payload_id);
         radio.startListening();
 
       } else if (strcmp(words[2], "-l") == 0) { // Send LED pattern
@@ -193,6 +195,8 @@ void handleSerialData(char inData[], byte index) {
           radio.stopListening();
           radio.openWritingPipe(TOaddr);
           radio.write(&myPayload, sizeof(myPayload));
+          Serial.print("Sending payload with id ");
+          Serial.println(payload_id);
           radio.startListening();
         }
 
@@ -224,6 +228,8 @@ void handleSerialData(char inData[], byte index) {
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
         radio.write(&myPayload, sizeof(myPayload));
+        Serial.print("Sending payload with id ");
+        Serial.println(payload_id);
         radio.startListening();
       }
 
@@ -271,6 +277,8 @@ void handleSerialData(char inData[], byte index) {
       radio.stopListening();
       radio.openWritingPipe(multi_addr);
       radio.write(&myPayload, sizeof(myPayload));
+      Serial.print("Sending payload with id ");
+      Serial.println(payload_id);
       radio.startListening();
       // radio.setAutoAck(true);
   }
@@ -286,7 +294,7 @@ void handlePayload(struct Payload * myPayload) {
   Serial.print("Payload command: ");
   Serial.println(myPayload->command);
   Serial.print("Payload address: 0x");
-  Serial.println(myPayload->address);
+  Serial.println(myPayload->address, HEX);
   Serial.print("Payload data: ");
   Serial.println(myPayload->data);
   
@@ -328,6 +336,8 @@ void handlePayload(struct Payload * myPayload) {
     radio.stopListening();
     radio.openWritingPipe(multi_addr);
     radio.write(&myPayload, sizeof(myPayload));
+    Serial.print("Sending payload with id ");
+    Serial.println(myPayload->payload_id);
     radio.startListening();
   }
   
