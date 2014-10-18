@@ -317,6 +317,8 @@ void handlePayload(struct Payload * myPayload) {
     radio.startListening();
   }
   
+  memcpy(&last_payload, &myPayload, sizeof(myPayload));
+  
   free(myPayload); // Deallocate payload memory block
 }
 
