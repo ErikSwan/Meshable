@@ -179,7 +179,7 @@ void handleSerialData(char inData[], byte index) {
 
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
-        radio.write(&myPayload, len);
+        radio.write(&myPayload, sizeof(myPayload));
         radio.startListening();
 
       } else if (strcmp(words[2], "-l") == 0) { // Send LED pattern
@@ -190,7 +190,7 @@ void handleSerialData(char inData[], byte index) {
 
           radio.stopListening();
           radio.openWritingPipe(TOaddr);
-          radio.write(&myPayload, len);
+          radio.write(&myPayload, sizeof(myPayload));
           radio.startListening();
         }
 
@@ -268,7 +268,7 @@ void handleSerialData(char inData[], byte index) {
       Serial.println("multicast");
       radio.stopListening();
       radio.openWritingPipe(multi_addr);
-      radio.write(&myPayload, len);
+      radio.write(&myPayload, sizeof(myPayload));
       radio.startListening();
       // radio.setAutoAck(true);
   }
