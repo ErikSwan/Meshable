@@ -314,7 +314,7 @@ void handlePayload(struct Payload * myPayload) {
   Serial.print('myPayload payload_id is ');
   Serial.println(myPayload->payload_id);
   Serial.print('last_payload payload_id is ');
-  Serial.println(lastpayload->payload_id);
+  Serial.println(last_payload->payload_id);
   
   if(myPayload->payload_id != last_payload->payload_id) {
     Serial.print("forwarding payload for address ");
