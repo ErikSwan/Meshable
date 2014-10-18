@@ -33,6 +33,12 @@ typedef struct Payload { // Payload structure
   char data[28]; 
 } Payload;
 
+typedef struct MsgHistory {
+  Payload first;
+  Payload second;
+  Payload third;
+} MsgQueue
+
 void welcomeMessage(void);
 void printHelpText(void);
 void printPrompt(void);
@@ -296,11 +302,7 @@ void handlePayload(struct Payload * myPayload) {
   Serial.print("Payload address: 0x");
   Serial.println(myPayload->address, HEX);
   Serial.print("Payload data: 0x");
-  int i = 0;
-  for (i=0; i++; i<28)
-  {
-  Serial.println(myPayload->data[i], HEX);
-  }
+  Serial.println(myPayload->data, HEX);
   
   Serial.print("last_payload payload_id is ");
   Serial.println(last_payload->payload_id);
