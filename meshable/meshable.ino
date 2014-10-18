@@ -79,7 +79,7 @@ void setup() {
   radio.begin();
   radio.setDataRate(RF24_1MBPS); // 1Mbps transfer rate
   radio.setCRCLength(RF24_CRC_16); // 16-bit CRC
-  radio.setChannel(80); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
+  radio.setChannel(40); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
   radio.setRetries(200, 5); // set the delay and number of retries upon failed transmit
   radio.openReadingPipe(0, multi_addr); // Open this address
   radio.openReadingPipe(1, this_node_address); // true node address
@@ -281,9 +281,20 @@ void handleSerialData(char inData[], byte index) {
 void handlePayload(struct Payload * myPayload) {
   
   Serial.println("Handling payload...");
+  Serial.print("Payload ID: ");
+  Serial.println(myPayload->payload_id);
+  Serial.print("Payload command: ");
+  Serial.println(myPayload->command);
+  Serial.print("Payload address: 0x");
+  Serial.println(myPayload->address);
+  Serial.print("Payload data: ");
+  Serial.println(myPayload->data);
+  
+  Serial.print("last_payload payload_id is ");
+  Serial.println(last_payload->payload_id);
   
   if(myPayload->address == multi_addr || myPayload->address == this_node_address) {
-    Serial.print("Payload received for address 0x");
+    Serial.print("Payload accepted for address 0x");
     Serial.println(myPayload->address, HEX);
     switch(myPayload->command) {
       case PING:
@@ -311,11 +322,6 @@ void handlePayload(struct Payload * myPayload) {
     }
   }
   
-  Serial.print("myPayload payload_id is ");
-  Serial.println(myPayload->payload_id);
-  Serial.print("last_payload payload_id is ");
-  Serial.println(last_payload->payload_id);
-  
   if(myPayload->payload_id != last_payload->payload_id) {
     Serial.print("forwarding payload for address ");
     Serial.println(myPayload->address, HEX);
@@ -325,6 +331,7 @@ void handlePayload(struct Payload * myPayload) {
     radio.startListening();
   }
   
+  Serial.println("Copying myPayload into last_payload");
   memcpy(&last_payload, &myPayload, sizeof(myPayload));
   
   free(myPayload); // Deallocate payload memory block
