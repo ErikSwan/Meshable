@@ -270,7 +270,7 @@ void handleSerialData(char inData[], byte index) {
       byte payload_id = random(255);
       // radio.setAutoAck(false);
       byte led_patt = (byte) atoi(words[1]);
-      Payload myPayload = {payload_id, LED, 0x0000, {led_patt}};
+      Payload myPayload = {payload_id, LED, multi_addr, {led_patt}};
       size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
 
       Serial.println("multicast");
