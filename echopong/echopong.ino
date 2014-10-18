@@ -61,7 +61,7 @@ struct payload{ // Payload structure
   byte command;
   byte led_pattern;
   char message[30];
-  byte from;
+  uint16_t from;
 };
 
 // This runs once on boot
@@ -172,7 +172,7 @@ void handleSerialData(char inData[], byte index) {
       uint16_t TOaddr = strtol(words[1], NULL, 16);
 
       if (strncmp(words[2], "-p", 2) == 0) { // Send ping
-        struct payload myPayload = {PING, '\0', {'\0'}};
+        struct payload myPayload = {PING, '\0', {'\0'},this_node_address};
         size_t len = sizeof(PING) + sizeof('\0') * 2;
 
         radio.stopListening();
@@ -183,7 +183,7 @@ void handleSerialData(char inData[], byte index) {
       } else if (strcmp(words[2], "-l") == 0) { // Send LED pattern
         if (strspn(words[3], "1234567890") == 1) {
           byte led_patt = (byte) atoi(words[3]);
-          struct payload myPayload = {LED, led_patt, {'\0'}};
+          struct payload myPayload = {LED, led_patt, {'\0'},this_node_address};
           size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
 
           radio.stopListening();
@@ -212,7 +212,7 @@ void handleSerialData(char inData[], byte index) {
           }
         }
 
-        struct payload myPayload = {MESS, '\0', {},{}};
+        struct payload myPayload = {MESS, '\0', {},this_node_address};
 
         // the end of the string minus the start of the string gives the length
         memcpy(&myPayload.message, str_msg, curr_pos - str_msg);
@@ -285,15 +285,16 @@ void handleSerialData(char inData[], byte index) {
 // Grab message received by nRF for this node
 void handlePayload(struct payload * myPayload) {
   switch(myPayload->command) {
-
+    
+    payload sendPayload;
+    size_t len;
     case PING:
       Serial.println("Someone pinged us!");
       printPrompt();
-      myPayload = {PONG, '\0', {'\0'},{}};
-      size_t len = sizeof(PONG) + sizeof('\0') * 2;
-
+      sendPayload = {PONG, '\0', {'\0'},this_node_address};
+      len = sizeof(PONG) + sizeof('\0') * 2 + sizeof(this_node_address);
       radio.stopListening();
-      radio.openWritingPipe(TOaddr);
+      radio.openWritingPipe(myPayload->from);
       radio.write(&myPayload, len);
       radio.startListening();
       break;
@@ -320,6 +321,7 @@ void handlePayload(struct payload * myPayload) {
     default:
       Serial.println(" Invalid command received.");
       break;
+      
   }
   free(myPayload); // Deallocate payload memory block
 }
