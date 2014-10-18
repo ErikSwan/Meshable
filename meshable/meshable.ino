@@ -59,7 +59,9 @@ int SRLatchPin = 8; // using digital pin 4 for SR latch
 boolean terminalConnect = false; // indicates if the terminal has connected to the board yet
 uint16_t multi_addr = 0x2bc0; // multi cast address
 
-Payload * last_payload = (Payload *) malloc(sizeof(Payload));
+// initialize queue for previously recieved IDs
+int last_ind = 0;
+byte last_payload_arr[5] = {0,0,0,0,0};
 
 // nRF24L01 radio static initializations
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
@@ -304,7 +306,7 @@ void handlePayload(struct Payload * myPayload) {
   }
   
   Serial.print("last_payload payload_id is ");
-  Serial.println(last_payload->payload_id);
+  Serial.println(last_payload_arr[last_ind]);
   
   if(myPayload->address == multi_addr || myPayload->address == this_node_address) {
     Serial.print("Payload accepted for address 0x");
@@ -335,20 +337,36 @@ void handlePayload(struct Payload * myPayload) {
     }
   }
   
-  if(myPayload->payload_id != last_payload->payload_id) {
-    Serial.print("forwarding payload for address ");
-    Serial.println(myPayload->address, HEX);
-    radio.stopListening();
-    radio.openWritingPipe(multi_addr);
-    radio.write(&myPayload, sizeof(myPayload));
-    Serial.print("Sending payload with id ");
-    Serial.println(myPayload->payload_id);
-    radio.startListening();
-  }
+  int ind = 0;
+  while(true) {
+    if(myPayload->payload_id == last_payload_arr[ind]) {
+      break;
+    } 
+    else if(ind == 4) //myPayload->payload_id does NOT equal any of the past 5 payload_id's
+    {
+      Serial.print("forwarding payload for address ");
+      Serial.println(myPayload->address, HEX);
+      radio.stopListening();
+      radio.openWritingPipe(multi_addr);
+      radio.write(&myPayload, sizeof(myPayload));
+      Serial.print("Sending payload with id ");
+      Serial.println(myPayload->payload_id);
+      radio.startListening();
+      break;
+    }
+    ind++;
+  }  
   
-  Serial.println("Copying myPayload into last_payload");
-  // memcpy(&last_payload, &myPayload, sizeof(myPayload));
-  last_payload->payload_id = myPayload->payload_id;
+   Serial.println("Copying myPayload into last_payload"); 
+//*************************************************************************************************  
+  if(last_ind != 5) {
+     last_payload_arr[last_ind] = myPayload->payload_id;
+     last_ind++;
+  }  
+  else {
+    last_ind = 0;
+    last_payload_arr[last_ind] = myPayload->payload_id;
+  }  
   
   free(myPayload); // Deallocate payload memory block
 }
