@@ -14,8 +14,6 @@
 // Happy Hacking!
 //
 
-// Rett's first changes
-
 #define MAX_TERMINAL_LINE_LEN 40
 #define MAX_TERMINAL_WORDS     7
 
@@ -37,7 +35,7 @@ void serialRead(void);
 void handleSerialData(char[], byte);
 
 void setValue(word);
-void handlePayload(struct payload *);
+void handlePayload(Payload *);
 
 void ledDisplay(byte);
 void displayDemo();
@@ -59,11 +57,12 @@ RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, re
 
 uint16_t this_node_address = (EEPROM.read(0) << 8) | EEPROM.read(1); // Radio address for this node
 
-struct payload{ // Payload structure
+typedef struct Payload { // Payload structure
+  byte payload_id; // random number
   byte command;
-  byte led_pattern;
-  char message[30];
-};
+  uint16_t address; // reserved for future use
+  char data[28]; 
+} Payload;
 
 // This runs once on boot
 void setup() {
@@ -78,9 +77,9 @@ void setup() {
   radio.begin();
   radio.setDataRate(RF24_1MBPS); // 1Mbps transfer rate
   radio.setCRCLength(RF24_CRC_16); // 16-bit CRC
-  radio.setChannel(70); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
-  radio.setRetries(200, 30); // set the delay and number of retries upon failed transmit
-  radio.openReadingPipe(0, multi_addr); // multi cast address
+  radio.setChannel(80); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
+  radio.setRetries(200, 5); // set the delay and number of retries upon failed transmit
+  radio.openReadingPipe(0, multi_addr); // Open this address
   radio.openReadingPipe(0, this_node_address); // true node address
   radio.startListening(); // Start listening on opened address
 
@@ -116,10 +115,10 @@ void loop() {
 // Handle reading from the radio
 void networkRead() {
   while (radio.available()) {
-    struct payload * current_payload = (struct payload *) malloc(sizeof(struct payload));
+    Payload * current_payload = (Payload *) malloc(sizeof(Payload));
 
     // Fetch the payload, and see if this was the last one.
-    radio.read( current_payload, sizeof(struct payload) );
+    radio.read( current_payload, sizeof(Payload) );
     handlePayload(current_payload);
   }
 }
@@ -172,9 +171,10 @@ void handleSerialData(char inData[], byte index) {
         && (strspn(words[1], "1234567890AaBbCcDdEeFf") > 0)) {
 
       uint16_t TOaddr = strtol(words[1], NULL, 16);
+      byte payload_id = random(255);
 
       if (strncmp(words[2], "-p", 2) == 0) { // Send ping
-        struct payload myPayload = {PING, '\0', {'\0'}};
+        Payload myPayload = {payload_id, PING, TOaddr, {'\0'}}; 
         size_t len = sizeof(PING) + sizeof('\0') * 2;
 
         radio.stopListening();
@@ -185,7 +185,7 @@ void handleSerialData(char inData[], byte index) {
       } else if (strcmp(words[2], "-l") == 0) { // Send LED pattern
         if (strspn(words[3], "1234567890") == 1) {
           byte led_patt = (byte) atoi(words[3]);
-          struct payload myPayload = {LED, led_patt, {'\0'}};
+          Payload myPayload = {payload_id, LED, TOaddr, {led_patt}}; 
           size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
 
           radio.stopListening();
@@ -214,11 +214,11 @@ void handleSerialData(char inData[], byte index) {
           }
         }
 
-        struct payload myPayload = {MESS, '\0', {}};
+        Payload myPayload = {payload_id, MESS, TOaddr, {}};
 
         // the end of the string minus the start of the string gives the length
-        memcpy(&myPayload.message, str_msg, curr_pos - str_msg);
-        Serial.println(myPayload.message);
+        memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
+        Serial.println(myPayload.data);
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
         radio.write(&myPayload, sizeof(myPayload));
@@ -275,7 +275,7 @@ void handleSerialData(char inData[], byte index) {
 
 
 // Grab message received by nRF for this node
-void handlePayload(struct payload * myPayload) {
+void handlePayload(Payload * myPayload) {
   switch(myPayload->command) {
 
     case PING:
@@ -284,12 +284,12 @@ void handlePayload(struct payload * myPayload) {
       break;
 
     case LED:
-      ledDisplay(myPayload->led_pattern);
+      ledDisplay(myPayload->data[0]);
       break;
 
     case MESS:
       Serial.print("Message:\r\n  ");
-      Serial.println(myPayload->message);
+      Serial.println(myPayload->data);
       printPrompt();
       break;
 
