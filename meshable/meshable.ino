@@ -59,6 +59,8 @@ int SRLatchPin = 8; // using digital pin 4 for SR latch
 boolean terminalConnect = false; // indicates if the terminal has connected to the board yet
 uint16_t multi_addr = 0x2bc0; // multi cast address
 
+Payload * last_payload = (Payload *) malloc(sizeof(Payload));
+
 // nRF24L01 radio static initializations
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
 
@@ -277,31 +279,44 @@ void handleSerialData(char inData[], byte index) {
 
 // Grab message received by nRF for this node
 void handlePayload(struct Payload * myPayload) {
-  switch(myPayload->command) {
-
-    case PING:
-      Serial.println("Someone pinged us!");
-      printPrompt();
-      break;
-
-    case LED:
-      ledDisplay(myPayload->data[0]);
-      break;
-
-    case MESS:
-      Serial.print("Message:\r\n  ");
-      Serial.println(myPayload->data);
-      printPrompt();
-      break;
-
-    case DEMO:
-      displayDemo();
-      break;
-
-    default:
-      Serial.println(" Invalid command received.");
-      break;
+  
+  if(myPayload->address == multi_addr || myPayload->address == this_node_address) {
+    switch(myPayload->command) {
+  
+      case PING:
+        Serial.println("Someone pinged us!");
+        printPrompt();
+        break;
+  
+      case LED:
+        ledDisplay(myPayload->data[0]);
+        break;
+  
+      case MESS:
+        Serial.print("Message:\r\n  ");
+        Serial.println(myPayload->data);
+        printPrompt();
+        break;
+  
+      case DEMO:
+        displayDemo();
+        break;
+  
+      default:
+        Serial.println(" Invalid command received.");
+        break;
+    }
   }
+  
+  if(myPayload->payload_id != last_payload->payload_id) {
+    Serial.print("forwarding payload for address ");
+    Serial.println(myPayload->address, HEX);
+    radio.stopListening();
+    radio.openWritingPipe(multi_addr);
+    radio.write(&myPayload, sizeof(myPayload));
+    radio.startListening();
+  }
+  
   free(myPayload); // Deallocate payload memory block
 }
 
