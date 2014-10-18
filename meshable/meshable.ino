@@ -80,7 +80,7 @@ void setup() {
   radio.setDataRate(RF24_1MBPS); // 1Mbps transfer rate
   radio.setCRCLength(RF24_CRC_16); // 16-bit CRC
   radio.setChannel(40); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
-  radio.setRetries(200, 5); // set the delay and number of retries upon failed transmit
+  radio.setRetries(200, 15); // set the delay and number of retries upon failed transmit
   radio.openReadingPipe(0, multi_addr); // Open this address
   radio.openReadingPipe(1, this_node_address); // true node address
   radio.startListening(); // Start listening on opened address
@@ -347,7 +347,8 @@ void handlePayload(struct Payload * myPayload) {
   }
   
   Serial.println("Copying myPayload into last_payload");
-  memcpy(&last_payload, &myPayload, sizeof(myPayload));
+  // memcpy(&last_payload, &myPayload, sizeof(myPayload));
+  last_payload->payload_id = myPayload->payload_id;
   
   free(myPayload); // Deallocate payload memory block
 }
