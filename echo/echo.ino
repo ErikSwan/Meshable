@@ -8,7 +8,7 @@
 // Lior Ben-Yehoshua (admin@Lior9999.com)
 // Viraj Sinha       (virajosinha@gmail.com)
 // Scott Opell       (me@scottopell.com)
-//xz
+//
 // 10/15/2014
 //
 // Happy Hacking!
@@ -26,13 +26,6 @@
 #include <SPI.h>
 #include <EEPROM.h>
 
-typedef struct Payload { // Payload structure
-  byte payload_id; // random number
-  byte command;
-  uint16_t address; // reserved for future use
-  char data[28]; 
-} Payload;
-
 void welcomeMessage(void);
 void printHelpText(void);
 void printPrompt(void);
@@ -42,7 +35,7 @@ void serialRead(void);
 void handleSerialData(char[], byte);
 
 void setValue(word);
-void handlePayload(struct Payload *);
+void handlePayload(struct payload *);
 
 void ledDisplay(byte);
 void displayDemo();
@@ -52,19 +45,23 @@ const byte PING   = 0; // Ping
 const byte LED    = 1; // LED pattern
 const byte MESS   = 2; // Message
 const byte DEMO   = 3; // Demo Pattern
+const byte PONG   = 4; // Pong, response to ping
 
 // Global Variables
 int SROEPin = 3; // using digital pin 3 for SR !OE
 int SRLatchPin = 8; // using digital pin 4 for SR latch
 boolean terminalConnect = false; // indicates if the terminal has connected to the board yet
-uint16_t multi_addr = 0x2bc0; // multi cast address
-
-Payload * last_payload = (Payload *) malloc(sizeof(Payload));
 
 // nRF24L01 radio static initializations
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
 
 uint16_t this_node_address = (EEPROM.read(0) << 8) | EEPROM.read(1); // Radio address for this node
+
+struct payload{ // Payload structure
+  byte command;
+  byte led_pattern;
+  char message[30];
+};
 
 // This runs once on boot
 void setup() {
@@ -79,10 +76,9 @@ void setup() {
   radio.begin();
   radio.setDataRate(RF24_1MBPS); // 1Mbps transfer rate
   radio.setCRCLength(RF24_CRC_16); // 16-bit CRC
-  radio.setChannel(40); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
+  radio.setChannel(80); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
   radio.setRetries(200, 5); // set the delay and number of retries upon failed transmit
-  radio.openReadingPipe(0, multi_addr); // Open this address
-  radio.openReadingPipe(1, this_node_address); // true node address
+  radio.openReadingPipe(0, this_node_address); // Open this address
   radio.startListening(); // Start listening on opened address
 
   // Shift register pin initializations
@@ -108,7 +104,7 @@ void loop() {
   } else if (!Serial && terminalConnect) {
     terminalConnect = false;
   }
-
+  ledDisplay(5);
   networkRead(); // Read from network
   serialRead(); // Read from serial  
 }
@@ -117,10 +113,10 @@ void loop() {
 // Handle reading from the radio
 void networkRead() {
   while (radio.available()) {
-    Payload * current_payload = (Payload *) malloc(sizeof(Payload));
+    struct payload * current_payload = (struct payload *) malloc(sizeof(struct payload));
 
     // Fetch the payload, and see if this was the last one.
-    radio.read( current_payload, sizeof(Payload) );
+    radio.read( current_payload, sizeof(struct payload) );
     handlePayload(current_payload);
   }
 }
@@ -173,31 +169,25 @@ void handleSerialData(char inData[], byte index) {
         && (strspn(words[1], "1234567890AaBbCcDdEeFf") > 0)) {
 
       uint16_t TOaddr = strtol(words[1], NULL, 16);
-      byte payload_id = random(255);
 
       if (strncmp(words[2], "-p", 2) == 0) { // Send ping
-        Payload myPayload = {payload_id, PING, TOaddr, {'\0'}}; 
+        struct payload myPayload = {PING, '\0', {'\0'}};
         size_t len = sizeof(PING) + sizeof('\0') * 2;
 
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
-        // CHANGED CODE
         radio.write(&myPayload, len);
-        Serial.print("Sending payload with id ");
-        Serial.println(payload_id);
         radio.startListening();
 
       } else if (strcmp(words[2], "-l") == 0) { // Send LED pattern
         if (strspn(words[3], "1234567890") == 1) {
           byte led_patt = (byte) atoi(words[3]);
-          Payload myPayload = {payload_id, LED, TOaddr, {led_patt}}; 
+          struct payload myPayload = {LED, led_patt, {'\0'}};
           size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
 
           radio.stopListening();
           radio.openWritingPipe(TOaddr);
-          radio.write(&myPayload, sizeof(myPayload));
-          Serial.print("Sending payload with id ");
-          Serial.println(payload_id);
+          radio.write(&myPayload, len);
           radio.startListening();
         }
 
@@ -221,16 +211,14 @@ void handleSerialData(char inData[], byte index) {
           }
         }
 
-        Payload myPayload = {payload_id, MESS, TOaddr, {}};
+        struct payload myPayload = {MESS, '\0', {}};
 
         // the end of the string minus the start of the string gives the length
-        memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
-        Serial.println(myPayload.data);
+        memcpy(&myPayload.message, str_msg, curr_pos - str_msg);
+        Serial.println(myPayload.message);
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
         radio.write(&myPayload, sizeof(myPayload));
-        Serial.print("Sending payload with id ");
-        Serial.println(payload_id);
         radio.startListening();
       }
 
@@ -267,88 +255,59 @@ void handleSerialData(char inData[], byte index) {
     } else {
       Serial.println(" Invalid syntax.");
     }
-  } else if (strcmp(words[0], "multi") == 0) {
-      byte payload_id = random(255);
-      // radio.setAutoAck(false);
-      byte led_patt = (byte) atoi(words[1]);
-      Payload myPayload = {payload_id, LED, multi_addr, {led_patt}};
-      size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
-
-      Serial.println("multicast");
-      radio.stopListening();
-      radio.openWritingPipe(multi_addr);
-      radio.write(&myPayload, sizeof(myPayload));
-      Serial.print("Sending payload with id ");
-      Serial.println(payload_id);
-      radio.startListening();
-      // radio.setAutoAck(true);
   }
+  
+      // LAURENS CODE
+        
+       else if (strcmp(words[0], "echo") == 0) { // Send LED pattern
+        if (strspn(words[1], "1234567890") == 1) {
+          byte led_pattern = (byte) atoi(words[1]);
+          //byte chn = (byte) atoi(words[1]);
+          //struct payload myPayload = {LED, led_patt, {'\0'}};
+          //size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
+          
+          ledDisplay(led_pattern);
+          //radio.stopListening();
+          //radio.openWritingPipe(this_node_address);
+          //radio.write(&myPayload, len);
+          //radio.startListening();
+        }
+
+        else {
+          Serial.println("  Invalid LED pattern field.");
+        }
+      }
+        //END LAURENS CODE
 }
 
 
 // Grab message received by nRF for this node
-void handlePayload(struct Payload * myPayload) {
-  
-  Serial.println("Handling payload...");
-  Serial.print("Payload ID: ");
-  Serial.println(myPayload->payload_id);
-  Serial.print("Payload command: ");
-  Serial.println(myPayload->command);
-  Serial.print("Payload address: 0x");
-  Serial.println(myPayload->address, HEX);
-  Serial.print("Payload data: 0x");
-  int i = 0;
-  for (i=0; i++; i<28)
-  {
-  Serial.println(myPayload->data[i], HEX);
+void handlePayload(struct payload * myPayload) {
+  switch(myPayload->command) {
+
+    case PING:
+      Serial.println("Someone pinged us!");
+      printPrompt();
+      break;
+
+    case LED:
+      ledDisplay(myPayload->led_pattern);
+      break;
+
+    case MESS:
+      Serial.print("Message:\r\n  ");
+      Serial.println(myPayload->message);
+      printPrompt();
+      break;
+
+    case DEMO:
+      displayDemo();
+      break;
+
+    default:
+      Serial.println(" Invalid command received.");
+      break;
   }
-  
-  Serial.print("last_payload payload_id is ");
-  Serial.println(last_payload->payload_id);
-  
-  if(myPayload->address == multi_addr || myPayload->address == this_node_address) {
-    Serial.print("Payload accepted for address 0x");
-    Serial.println(myPayload->address, HEX);
-    switch(myPayload->command) {
-      case PING:
-        Serial.println("Someone pinged us!");
-        printPrompt();
-        break;
-  
-      case LED:
-        ledDisplay(myPayload->data[0]);
-        break;
-  
-      case MESS:
-        Serial.print("Message:\r\n  ");
-        Serial.println(myPayload->data);
-        printPrompt();
-        break;
-  
-      case DEMO:
-        displayDemo();
-        break;
-  
-      default:
-        Serial.println("Invalid command received.");
-        break;
-    }
-  }
-  
-  if(myPayload->payload_id != last_payload->payload_id) {
-    Serial.print("forwarding payload for address ");
-    Serial.println(myPayload->address, HEX);
-    radio.stopListening();
-    radio.openWritingPipe(multi_addr);
-    radio.write(&myPayload, sizeof(myPayload));
-    Serial.print("Sending payload with id ");
-    Serial.println(myPayload->payload_id);
-    radio.startListening();
-  }
-  
-  Serial.println("Copying myPayload into last_payload");
-  memcpy(&last_payload, &myPayload, sizeof(myPayload));
-  
   free(myPayload); // Deallocate payload memory block
 }
 
@@ -454,6 +413,18 @@ void ledDisplay(byte pattern) {
       delay(125);
     }
   }
+  
+  else if(pattern == 5) {
+    word pattern = 0x0001;
+    int del = 250;
+    setValue(pattern);
+    for(int i=0; i<16; i++) {
+      delay(del);
+      pattern = (pattern << 1);
+      setValue(pattern);
+    }
+  }  
+  
   digitalWrite(SROEPin, HIGH);
 }
 
@@ -498,6 +469,8 @@ void printHelpText() {
   Serial.println("                - [val] - new channel. Valid range: 0-83.");
   Serial.println();
   Serial.println("  radio [on | off] - turn radio on or off");
+  Serial.println("  echo  [data]     - displays LED pattern to your own badge");
+  Serial.println("           - [data] - LED pattern. Valid range: 0-255.");
 }
 
 void welcomeMessage(void) {
