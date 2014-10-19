@@ -71,6 +71,7 @@ void printPayloadCache(void);
 boolean terminalConnect = false; // indicates if the terminal has connected to the board yet
 int payload_cache[PAYLOAD_CACHE_SIZE];
 int payload_cache_index = 0;
+char initials[4] = "";
 
 // nRF24L01 radio static initializations
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
@@ -293,7 +294,12 @@ void handleSerialData(char inData[], byte index) {
     } else {
       Serial.println(" Invalid syntax.");
     }
-  } else if(strcmp(words[0], "payload-cache") == 0) {
+  } else if(strcmp(words[0], "name") == 0) {
+		// read in name
+		strncpy(initials, words[1], 2);
+		initials[2] = ':';
+		initials[3] = ' ';
+	} else if(strcmp(words[0], "payload-cache") == 0) {
       printPayloadCache();
   } else {
       byte payload_id = random(255);
@@ -317,7 +323,8 @@ void handleSerialData(char inData[], byte index) {
       Payload myPayload = {payload_id, MESS, MULTI_ADDR, {}};
 
       // the end of the string minus the start of the string gives the length
-      memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
+			memcpy(myPayload.data, initials, 4);
+      memcpy(myPayload.data + 4, str_msg, curr_pos - str_msg);
 
       radio.stopListening();
       radio.openWritingPipe(MULTI_ADDR);
@@ -409,7 +416,7 @@ void handlePayload(struct Payload * myPayload) {
           Serial.println(myPayload->data);
           printPrompt();
           break;
-    
+				
         default:
           Serial.println("Invalid command received.");
           break;
@@ -596,7 +603,7 @@ void welcomeMessage(void) {
   Serial.print("\r\nHi! Welcome to Meshenger Chat Client!\r\n\n");
   Serial.print("Currently you are: ");
   Serial.println(hex_addr);
-  Serial.print("\nType send <message> to send your message! Messages are limited to 28 characters in length.\r\n\n>");
+  Serial.print("\nType to send your message! Messages are limited to 24 characters in length.  Type 'name' followed by your initials to identify yourself.\r\n\n>");
 }
 
 void printPayloadCache(void) {
