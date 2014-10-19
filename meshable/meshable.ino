@@ -251,12 +251,12 @@ void handleSerialData(char inData[], byte index) {
 
         // the end of the string minus the start of the string gives the length
         memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
-        Serial.println(myPayload.data);
+        // Serial.println(myPayload.data);
         radio.stopListening();
         radio.openWritingPipe(MULTI_ADDR);
         sendPacket(&myPayload, sizeof(myPayload), true);
-        Serial.print("Sending payload with id ");
-        Serial.println(payload_id);
+        // Serial.print("Sending payload with id ");
+        // Serial.println(payload_id);
         radio.startListening();
       }
 
@@ -295,14 +295,33 @@ void handleSerialData(char inData[], byte index) {
     }
   } else if (strcmp(words[0], "multi") == 0) {
       byte payload_id = random(255);
-      byte led_patt = (byte) atoi(words[1]);
-      Payload myPayload = {payload_id, LED, MULTI_ADDR, {led_patt}};
 
-      Serial.println("multicast");
+      // read in entire 28 bytes
+      char str_msg[28];
+
+      char * curr_pos = str_msg;
+      for (int i = 1; i < current_word_index; i++){
+        byte curr_len = strlen(words[i]);
+        strncpy(curr_pos, words[i], curr_len);
+        curr_pos += curr_len;
+
+        // this will add in the space characters that tokenizing removes
+        if (i < current_word_index - 1){
+          strncpy(curr_pos, " ", 1);
+          curr_pos++;
+        }
+      }
+
+      Payload myPayload = {payload_id, MESS, MULTI_ADDR, {}};
+
+      // the end of the string minus the start of the string gives the length
+      memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
+
       radio.stopListening();
       radio.openWritingPipe(MULTI_ADDR);
       sendPacket(&myPayload, sizeof(myPayload), true);
       #if DEBUG
+        Serial.println("multicast");
         Serial.print("Sending payload with id ");
         Serial.print(payload_id);
       #endif
