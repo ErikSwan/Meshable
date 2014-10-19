@@ -192,10 +192,16 @@ void handleSerialData(char inData[], byte index) {
     p = strtok(NULL, " ");
   }
 
-  if (strcmp(words[0], "help") == 0) {
+  if (strcmp(words[0], ":help") == 0) {
     printHelpText();
 
-  } else if (strcmp(words[0], "send") == 0) {
+	} (strcmp(words[0], ":dm") == 0) {
+		// direct message
+	} (strcmp(words[0], ":name") == 0) {
+		// change name
+	} (strcmp(words[0], ":join") == 0) { 
+		// join group chat
+  } else 
     // checks if address field was given valid characters
     if ((strspn(words[1], "1234567890AaBbCcDdEeFf") <= 4)
         && (strspn(words[1], "1234567890AaBbCcDdEeFf") > 0)) {
