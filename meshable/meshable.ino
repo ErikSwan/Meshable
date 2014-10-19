@@ -17,6 +17,7 @@
 #define DEBUG                 1
 #define MAX_TERMINAL_LINE_LEN 128 
 #define MAX_TERMINAL_WORDS    7
+#define MAX_SINGLE_MESSAGE    25
 
 #define PAYLOAD_CACHE_SIZE    5
 #define MESSAGE_MAX_LEN       5 // 120 characters
@@ -61,6 +62,9 @@ typedef struct Message {
   uint16_t address;
   char content[120];
 } Message;
+
+// global for breaking long message into payloads
+Message transmission[5];
 
 void welcomeMessage(void);
 void printHelpText(void);
@@ -205,6 +209,8 @@ void handleSerialData(char inData[], byte index) {
     words[current_word_index++] = p;
     p = strtok(NULL, " ");
   }
+  Serial.print("Number of words on line: ");
+  Serial.println(current_word_index);
 
   if (strcmp(words[0], ":help") == 0) {
     printHelpText();
@@ -254,6 +260,22 @@ void handleSerialData(char inData[], byte index) {
 
       } else if (strcmp(words[2], "-m") == 0) { // Send message
 */
+    // write message into message struct
+    Message msg;
+    strncpy(msg->data, words, current_word_index);
+
+    // message more than 25 characters, split into payloads
+    if (current_word_index > MAX_SINGLE_MESSAGE) {
+			int trans_filler = 0;
+      uint16_t payload_id = random(1000);
+			
+			for (int i=0; i<5; i++) {
+				transmission[i].payload_id = payload_id;	
+				transmission[i].message_length = 4;
+				transmission[i].message_id = 
+			}	
+			
+    }
 		char str_msg[MAX_TERMINAL_MESSAGE_LEN];
 
 		char * curr_pos = str_msg;
