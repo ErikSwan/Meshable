@@ -14,7 +14,7 @@
 // Happy Hacking!
 //
 
-#define DEBUG                 1
+#define DEBUG                 0
 #define MAX_TERMINAL_LINE_LEN 40
 #define MAX_TERMINAL_WORDS    7
 
@@ -293,7 +293,7 @@ void handleSerialData(char inData[], byte index) {
     } else {
       Serial.println(" Invalid syntax.");
     }
-  } else if (strcmp(words[0], "multi") == 0) {
+  } else if (strcmp(words[0], "send:") == 0) {
       byte payload_id = random(255);
 
       // read in entire 28 bytes
@@ -405,7 +405,7 @@ void handlePayload(struct Payload * myPayload) {
           break;
     
         case MESS:
-          Serial.print("Message:\r\n  ");
+          Serial.print("\r\n");
           Serial.println(myPayload->data);
           printPrompt();
           break;
@@ -593,11 +593,10 @@ void printHelpText() {
 void welcomeMessage(void) {
   char hex_addr[10];
   sprintf(hex_addr, "%04x", this_node_address);
-  Serial.print("\r\nWelcome to the BoilerMake Hackathon Badge Network...\r\n\n");
-  Serial.print("Your address: ");
+  Serial.print("\r\nHi! Welcome to Meshenger Chat Client!\r\n\n");
+  Serial.print("Currently you are: ");
   Serial.println(hex_addr);
-  Serial.print("\nAll commands must be terminated with a carriage return.\r\n"
-      "Type 'help' for a list of available commands.\r\n\n> ");
+  Serial.print("\nType send <message> to send your message! Messages are limited to 28 characters in length.\r\n\n>");
 }
 
 void printPayloadCache(void) {
