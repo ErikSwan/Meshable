@@ -293,14 +293,16 @@ void handleSerialData(char inData[], byte index) {
     } else {
       Serial.println(" Invalid syntax.");
     }
-  } else if (strcmp(words[0], "send:") == 0) {
+  } else if(strcmp(words[0], "payload-cache") == 0) {
+      printPayloadCache();
+  } else {
       byte payload_id = random(255);
 
       // read in entire 28 bytes
       char str_msg[28];
 
       char * curr_pos = str_msg;
-      for (int i = 1; i < current_word_index; i++){
+      for (int i = 0; i < current_word_index; i++){
         byte curr_len = strlen(words[i]);
         strncpy(curr_pos, words[i], curr_len);
         curr_pos += curr_len;
@@ -326,9 +328,7 @@ void handleSerialData(char inData[], byte index) {
         Serial.print(payload_id);
       #endif
       radio.startListening();
-  } else if(strcmp(words[0], "payload-cache") == 0) {
-      printPayloadCache();
-  }
+  } 
 }
 
 void sendPacket(struct Payload *buf, uint8_t len, bool origin) {
