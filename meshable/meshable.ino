@@ -42,7 +42,7 @@
 #include <EEPROM.h>
 
 typedef struct Payload {
-  uint16_t payload_id; // random number
+  byte payload_id; // random number
   byte message_id;
   byte message_length;
   char data[28];
@@ -64,7 +64,7 @@ typedef struct Message {
 } Message;
 
 // global for breaking long message into payloads
-Message transmission[5];
+Payload transmission[5];
 
 void welcomeMessage(void);
 void printHelpText(void);
@@ -205,11 +205,14 @@ void handleSerialData(char inData[], byte index) {
   char * words[MAX_TERMINAL_WORDS];
   byte current_word_index = 0;
   char * p = strtok(inData, " ");
+
+	// count characters and words (separated by spaces)
   while(p != NULL) {
     words[current_word_index++] = p;
     p = strtok(NULL, " ");
   }
-  Serial.print("Number of words on line: ");
+
+  // Serial.print("Number of words on line: ");
   Serial.println(current_word_index);
 
   if (strcmp(words[0], ":help") == 0) {
@@ -222,44 +225,6 @@ void handleSerialData(char inData[], byte index) {
 	} (strcmp(words[0], ":join") == 0) { 
 		// join group chat
   } else {
-/*
-    // checks if address field was given valid characters
-    // if ((strspn(words[1], "1234567890AaBbCcDdEeFf") <= 4)
-    // && (strspn(words[1], "1234567890AaBbCcDdEeFf") > 0)) {
-
-      // uint16_t TOaddr = strtol(words[1], NULL, 16);
-      // byte payload_id = random(255);
-
-      if (strncmp(words[2], "-p", 2) == 0) { // Send ping
-			Payload myPayload = {payload_id, PING, TOaddr, {'\0'}};
-
-			radio.stopListening();
-			radio.openWritingPipe(MULTI_ADDR);
-			// CHANGED CODE
-			sendPacket(&myPayload, sizeof(myPayload), true);
-			Serial.print("Sending payload with id ");
-			Serial.println(payload_id);
-			radio.startListening();
-
-      } else if (strcmp(words[2], "-l") == 0) { // Send LED pattern
-        if (strspn(words[3], "1234567890") == 1) {
-          byte led_patt = (byte) atoi(words[3]);
-          Payload myPayload = {payload_id, LED, TOaddr, {led_patt}}; 
-
-          radio.stopListening();
-          radio.openWritingPipe(MULTI_ADDR);
-          sendPacket(&myPayload, sizeof(myPayload), true);
-          Serial.print("Sending payload with id ");
-          Serial.println(payload_id);
-          radio.startListening();
-        }
-
-        else {
-          Serial.println("  Invalid LED pattern field.");
-        }
-
-      } else if (strcmp(words[2], "-m") == 0) { // Send message
-*/
     // write message into message struct
     Message msg;
     strncpy(msg.content, words, current_word_index);
@@ -269,118 +234,42 @@ void handleSerialData(char inData[], byte index) {
 			int trans_filler = 0;
 			int to_fill = current_word_index;
 			char * tmp_msg = msg.content;
-      uint16_t payload_id = random(1000);
+      byte message_id = random(255);
 			
 			// first payload
-			transmission[0].payload_id = payload_id;	
-			transmission[0].message_length = 4;
-			transmission[0].message_id = ++payload_id;
-			memcpy(transmission[0].data, msg, MAX_SINGLE_MESSAGE);
+			transmission[0].payload_id = 0;	
+			transmission[0].message_length = (current_word_index - 25) / 28 + 1;
+			// Serial.println(transmission[0].message_length);
+			transmission[0].message_id = message_id;
+			memcpy(transmission[0].data, msg, MAX_SINGLE_MESSAGE + 3);
+
 			transfiller += 25; // counts up the msg.content we have used
-			tmp_msg += 22; // move pointer forward
+			tmp_msg += 22; // move msg.content buffer forward
 			to_fill -= 25; // counts down the message.content we still need to use
 			
 			for (int i=1; i<5; i++) {
 				int to_cpy = 0; // # of bytes to put in msg.content
-				transmission[i].payload_id = payload_id;	
+				transmission[i].payload_id = ++transmission[i-1];	
 				transmission[i].message_length = 4;
 				transmission[i].message_id = ++payload_id;
 
-				// calculate how much data we still need to put in
+				// calculate how much data we still need to put in payload's data
 				if (to_fill > 28) {
 					to_cpy = 28;
 				} else {
 					to_cpy = 28 - to_fill;
 				}
 
+				// copy current place in msg into current payload
 				memcpy(transmission[i].data, tmp_msg, to_cpy);
 			}	
-			
-    }
-		char str_msg[MAX_TERMINAL_MESSAGE_LEN];
-
-		char * curr_pos = str_msg;
-
-		for (int i = 3; i < current_word_index; i++){
-			byte curr_len = strlen(words[i]);
-			strncpy(curr_pos, words[i], curr_len);
-			curr_pos += curr_len;
-
-			// this will add in the space characters that tokenizing removes
-			if (i < current_word_index - 1){
-				strncpy(curr_pos, " ", 1);
-				curr_pos++;
-			}
+    } else {
+			transmission[0].payload_id = 0;	
+			transmission[0].message_length = 4;
+			transmission[0].message_id = message_id;
+			memcpy(transmission[0].data, msg, current_word_index);
 		}
-
-/*
-		// Payload myPayload = {payload_id, MESS, TOaddr, {}};
-
-		// the end of the string minus the start of the string gives the length
-		memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
-		Serial.println(myPayload.data);
-		radio.stopListening();
-		radio.openWritingPipe(MULTI_ADDR);
-		sendPacket(&myPayload, sizeof(myPayload), true);
-		Serial.print("Sending payload with id ");
-		Serial.println(payload_id);
-		radio.startListening();
-		// }
-
-      else {
-        Serial.println("  Invalid command field.");
-      }
-    }
-
-    else {
-      Serial.println("  Invalid address field.");
-    }
-*/
   }
-
-/*
-  } else if (strcmp(words[0], "channel") == 0) {
-
-    // Set radio channel
-    byte chn = (byte) atoi(words[1]);
-
-    if (chn >= 0 && chn <= 83) {
-      Serial.print("Channel is now set to ");
-      Serial.println(chn);
-      radio.setChannel(chn);
-    } else {
-      Serial.println(" Invalid channel number. Legal channels are 0 - 83.");
-    }
-
-  } else if (strcmp(words[0], "radio") == 0) {
-    // Turn radio listening on/off
-    if (strcmp(words[1], "on") == 0) {
-      Serial.println("Radio is now in listening mode");
-      radio.startListening();
-    } else if (strcmp(words[1], "off") == 0) {
-      Serial.println("Radio is now NOT in listening mode");
-      radio.stopListening();
-    } else {
-      Serial.println(" Invalid syntax.");
-    }
-  } else if (strcmp(words[0], "multi") == 0) {
-      byte payload_id = random(255);
-      byte led_patt = (byte) atoi(words[1]);
-      Payload myPayload = {payload_id, LED, MULTI_ADDR, {led_patt}};
-
-      Serial.println("multicast");
-      radio.stopListening();
-      radio.openWritingPipe(MULTI_ADDR);
-      sendPacket(&myPayload, sizeof(myPayload), true);
-      #if DEBUG
-        Serial.print("Sending payload with id ");
-        Serial.print(payload_id);
-      #endif
-      radio.startListening();
-  } else if(strcmp(words[0], "payload-cache") == 0) {
-      printPayloadCache();
-  }
-*/
 }
 
 void sendPacket(struct Payload *buf, uint8_t len, bool origin) {
