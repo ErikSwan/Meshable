@@ -19,6 +19,7 @@
 #define MAX_TERMINAL_WORDS    7
 
 #define PAYLOAD_CACHE_SIZE    5
+#define MESSAGE_MAX_LEN       5 // 120 characters
 
 // 14 is strlen("send FFFF -m ")
 // the max message length able to be sent from the terminal is
@@ -26,10 +27,8 @@
 #define MAX_TERMINAL_MESSAGE_LEN  MAX_TERMINAL_LINE_LEN
 
 // Maps commands to integers
-#define PING   0 // Ping
-#define LED    1 // LED pattern
-#define MESS   2 // Message
-#define DEMO   3 // Demo Pattern
+#define SEND   0 // Send a message
+#define NAME   1 // Set name
 
 #define SROE_PIN    3 // using digital pin 3 for SR !OE
 #define SRLATCH_PIN 8 // using digital pin 4 for SR latch
@@ -42,11 +41,26 @@
 #include <EEPROM.h>
 
 typedef struct Payload {
-  byte payload_id; // random number
-  byte command; // command
-  uint16_t address; // address of node Payload should be delivered to
-  char data[28]; // data for command
+  uint16_t payload_id; // random number
+  byte message_id;
+  byte message_length;
+  char data[28];
+    // command
+        // send message
+        // set name
+    // address
+        // this can be a global address
+                      // group address
+                      // user address
+    // content
+        // segment of the message
 } Payload;
+
+typedef struct Message {
+  byte command;
+  uint16_t address;
+  char content[120];
+} Message;
 
 void welcomeMessage(void);
 void printHelpText(void);
