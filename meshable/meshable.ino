@@ -215,7 +215,8 @@ void handleSerialData(char inData[], byte index) {
 		// change name
 	} (strcmp(words[0], ":join") == 0) { 
 		// join group chat
-  } else 
+  } else {
+/*
     // checks if address field was given valid characters
     // if ((strspn(words[1], "1234567890AaBbCcDdEeFf") <= 4)
     // && (strspn(words[1], "1234567890AaBbCcDdEeFf") > 0)) {
@@ -223,7 +224,6 @@ void handleSerialData(char inData[], byte index) {
       // uint16_t TOaddr = strtol(words[1], NULL, 16);
       // byte payload_id = random(255);
 
-			/*
       if (strncmp(words[2], "-p", 2) == 0) { // Send ping
 			Payload myPayload = {payload_id, PING, TOaddr, {'\0'}};
 
@@ -253,10 +253,11 @@ void handleSerialData(char inData[], byte index) {
         }
 
       } else if (strcmp(words[2], "-m") == 0) { // Send message
-			*/
+*/
 		char str_msg[MAX_TERMINAL_MESSAGE_LEN];
 
 		char * curr_pos = str_msg;
+
 		for (int i = 3; i < current_word_index; i++){
 			byte curr_len = strlen(words[i]);
 			strncpy(curr_pos, words[i], curr_len);
@@ -269,10 +270,10 @@ void handleSerialData(char inData[], byte index) {
 			}
 		}
 
+/*
 		// Payload myPayload = {payload_id, MESS, TOaddr, {}};
 
 		// the end of the string minus the start of the string gives the length
-/*
 		memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
 		Serial.println(myPayload.data);
 		radio.stopListening();
@@ -282,9 +283,7 @@ void handleSerialData(char inData[], byte index) {
 		Serial.println(payload_id);
 		radio.startListening();
 		// }
-*/
 
-/*
       else {
         Serial.println("  Invalid command field.");
       }
@@ -293,7 +292,10 @@ void handleSerialData(char inData[], byte index) {
     else {
       Serial.println("  Invalid address field.");
     }
+*/
+  }
 
+/*
   } else if (strcmp(words[0], "channel") == 0) {
 
     // Set radio channel
