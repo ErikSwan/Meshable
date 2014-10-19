@@ -14,23 +14,38 @@
 // Happy Hacking!
 //
 
+#define DEBUG                 1
 #define MAX_TERMINAL_LINE_LEN 40
-#define MAX_TERMINAL_WORDS     7
+#define MAX_TERMINAL_WORDS    7
+
+#define PAYLOAD_CACHE_SIZE    5
 
 // 14 is strlen("send FFFF -m ")
 // the max message length able to be sent from the terminal is
 // total terminal line length MINUS the rest of the message
 #define MAX_TERMINAL_MESSAGE_LEN  MAX_TERMINAL_LINE_LEN - 14
 
+// Maps commands to integers
+#define PING   0 // Ping
+#define LED    1 // LED pattern
+#define MESS   2 // Message
+#define DEMO   3 // Demo Pattern
+
+#define SROE_PIN    3 // using digital pin 3 for SR !OE
+#define SRLATCH_PIN 8 // using digital pin 4 for SR latch
+
+#define MULTI_ADDR  0x2bc0 // multi cast address
+#define CHANNEL     30 // radio channel
+
 #include <RF24.h>
 #include <SPI.h>
 #include <EEPROM.h>
 
-typedef struct Payload { // Payload structure
+typedef struct Payload {
   byte payload_id; // random number
-  byte command;
-  uint16_t address; // reserved for future use
-  char data[28]; 
+  byte command; // command
+  uint16_t address; // address of node Payload should be delivered to
+  char data[28]; // data for command
 } Payload;
 
 void welcomeMessage(void);
@@ -40,31 +55,28 @@ void printPrompt(void);
 void networkRead(void);
 void serialRead(void);
 void handleSerialData(char[], byte);
+void sendPacket(struct Payload * , uint8_t, bool origin = false);
+
+bool isInCache(int, int *, size_t);
+uint8_t addToPayloadCache(byte);
 
 void setValue(word);
 void handlePayload(struct Payload *);
 
 void ledDisplay(byte);
 void displayDemo();
-
-// Maps commands to integers
-const byte PING   = 0; // Ping
-const byte LED    = 1; // LED pattern
-const byte MESS   = 2; // Message
-const byte DEMO   = 3; // Demo Pattern
+void printPayloadCache(void);
 
 // Global Variables
-int SROEPin = 3; // using digital pin 3 for SR !OE
-int SRLatchPin = 8; // using digital pin 4 for SR latch
 boolean terminalConnect = false; // indicates if the terminal has connected to the board yet
-uint16_t multi_addr = 0x2bc0; // multi cast address
-
-Payload * last_payload = (Payload *) malloc(sizeof(Payload));
+int payload_cache[PAYLOAD_CACHE_SIZE];
+int payload_cache_index = 0;
 
 // nRF24L01 radio static initializations
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
 
-uint16_t this_node_address = (EEPROM.read(0) << 8) | EEPROM.read(1); // Radio address for this node
+// Read this node's address from EEPROM
+const uint16_t this_node_address = (EEPROM.read(0) << 8) | EEPROM.read(1);
 
 // This runs once on boot
 void setup() {
@@ -77,19 +89,27 @@ void setup() {
 
   // nRF radio initializations
   radio.begin();
+  radio.setPALevel(RF24_PA_MAX);
   radio.setDataRate(RF24_1MBPS); // 1Mbps transfer rate
   radio.setAutoAck(false); // Disable ACKs to prevent multicast ACK flooding
   radio.setCRCLength(RF24_CRC_16); // 16-bit CRC
-  radio.setChannel(30); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
-  // radio.setRetries(15, 15); // max delay, max retries
-  radio.openReadingPipe(0, multi_addr); // multicast address
+  radio.setChannel(CHANNEL); // Channel center frequency = 2.4005 GHz + (Channel# * 1 MHz)
+  radio.openReadingPipe(0, MULTI_ADDR); // multicast address
   radio.startListening(); // Start listening on opened address
 
   // Shift register pin initializations
-  pinMode(SROEPin, OUTPUT);
-  pinMode(SRLatchPin, OUTPUT);
-  digitalWrite(SROEPin, HIGH);
-  digitalWrite(SRLatchPin, LOW);
+  pinMode(SROE_PIN, OUTPUT);
+  pinMode(SRLATCH_PIN, OUTPUT);
+  digitalWrite(SROE_PIN, HIGH);
+  digitalWrite(SRLATCH_PIN, LOW);
+
+  // Initialize payload cache
+  for(int i = 0; i < PAYLOAD_CACHE_SIZE; i++) {
+    payload_cache[i] = 0;
+  }
+
+  // Seed PRNG
+  randomSeed(analogRead(0));
 
   // Display welcome message
   welcomeMessage();
@@ -110,20 +130,27 @@ void loop() {
   }
 
   networkRead(); // Read from network
-  serialRead(); // Read from serial  
+  serialRead(); // Read from serial
 }
 
 
 // Handle reading from the radio
 void networkRead() {
+  digitalWrite(SROE_PIN, LOW);
+  setValue(0x0100);
+  delay(1);
   while (radio.available()) {
+    setValue(0x0300);
+    delay(1);
     Payload * current_payload = (Payload *) malloc(sizeof(Payload));
     current_payload->address = 0;
 
-    // Fetch the payload, and see if this was the last one.
+    // Fetch the payload
     radio.read( current_payload, sizeof(Payload) );
     handlePayload(current_payload);
   }
+  setValue(0x0000);
+  digitalWrite(SROE_PIN,HIGH);
 }
 
 
@@ -180,9 +207,9 @@ void handleSerialData(char inData[], byte index) {
         Payload myPayload = {payload_id, PING, TOaddr, {'\0'}};
 
         radio.stopListening();
-        radio.openWritingPipe(multi_addr);
+        radio.openWritingPipe(MULTI_ADDR);
         // CHANGED CODE
-        radio.multicastWrite(&myPayload, sizeof(myPayload));
+        sendPacket(&myPayload, sizeof(myPayload), true);
         Serial.print("Sending payload with id ");
         Serial.println(payload_id);
         radio.startListening();
@@ -193,8 +220,8 @@ void handleSerialData(char inData[], byte index) {
           Payload myPayload = {payload_id, LED, TOaddr, {led_patt}}; 
 
           radio.stopListening();
-          radio.openWritingPipe(multi_addr);
-          radio.multicastWrite(&myPayload, sizeof(myPayload));
+          radio.openWritingPipe(MULTI_ADDR);
+          sendPacket(&myPayload, sizeof(myPayload), true);
           Serial.print("Sending payload with id ");
           Serial.println(payload_id);
           radio.startListening();
@@ -226,8 +253,8 @@ void handleSerialData(char inData[], byte index) {
         memcpy(&myPayload.data, str_msg, curr_pos - str_msg);
         Serial.println(myPayload.data);
         radio.stopListening();
-        radio.openWritingPipe(multi_addr);
-        radio.multicastWrite(&myPayload, sizeof(myPayload));
+        radio.openWritingPipe(MULTI_ADDR);
+        sendPacket(&myPayload, sizeof(myPayload), true);
         Serial.print("Sending payload with id ");
         Serial.println(payload_id);
         radio.startListening();
@@ -268,51 +295,86 @@ void handleSerialData(char inData[], byte index) {
     }
   } else if (strcmp(words[0], "multi") == 0) {
       byte payload_id = random(255);
-      // radio.setAutoAck(false);
       byte led_patt = (byte) atoi(words[1]);
-      Payload myPayload = {payload_id, LED, multi_addr, {led_patt}};
+      Payload myPayload = {payload_id, LED, MULTI_ADDR, {led_patt}};
 
       Serial.println("multicast");
       radio.stopListening();
-      radio.openWritingPipe(multi_addr);
-      radio.multicastWrite(&myPayload, sizeof(myPayload));
-      Serial.print("Sending payload with id ");
-      Serial.print(payload_id);
+      radio.openWritingPipe(MULTI_ADDR);
+      sendPacket(&myPayload, sizeof(myPayload), true);
+      #if DEBUG
+        Serial.print("Sending payload with id ");
+        Serial.print(payload_id);
+      #endif
       radio.startListening();
-      // radio.setAutoAck(true);
-  } else if(strcmp(words[0], "last") == 0) {
-      Serial.print("Last payload id is ");
-      Serial.println(last_payload->payload_id);
+  } else if(strcmp(words[0], "payload-cache") == 0) {
+      printPayloadCache();
   }
 }
 
+void sendPacket(struct Payload *buf, uint8_t len, bool origin) {
+  radio.multicastWrite(buf, len);
+  if(origin) {
+    addToPayloadCache(buf->payload_id);
+  }
+}
 
 // Grab message received by nRF for this node
 void handlePayload(struct Payload * myPayload) {
-  Serial.println("Handling payload...");
-  Serial.print("Payload ID: ");
-  Serial.println(myPayload->payload_id);
-  Serial.print("Payload command: ");
-  Serial.println(myPayload->command);
-  Serial.print("Payload address: 0x");
-  Serial.println(myPayload->address, HEX);
-  Serial.print("Payload data: 0x");
-  int i = 0;
-  for (i=0; i<28; i++)
-  {
-  Serial.print(myPayload->data[i], HEX);
-  }
-  Serial.println("");
-  
-  Serial.print("last_payload payload_id is ");
-  Serial.println(last_payload->payload_id);
+  #if DEBUG
+    Serial.println("Handling payload...");
+    Serial.print("Payload ID: ");
+    Serial.println(myPayload->payload_id);
+    Serial.print("Payload command: ");
+    Serial.println(myPayload->command);
+    Serial.print("Payload address: 0x");
+    Serial.println(myPayload->address, HEX);
+    Serial.print("Payload data: 0x");
+    int i = 0;
+    for (i=0; i<28; i++)
+    {
+    Serial.print(myPayload->data[i], HEX);
+    }
+    Serial.println("");
+    
+    printPayloadCache();
+  #endif
 
-  if(myPayload->payload_id != last_payload->payload_id) {
+  if(!isInCache(myPayload->payload_id, payload_cache, sizeof(payload_cache))) {
+    // If we haven't seen this payload before...
 
-    // If this payload is for us, act on it.
-    if(myPayload->address == multi_addr || myPayload->address == this_node_address) {
-      Serial.print("Payload accepted for address 0x");
-      Serial.println(myPayload->address, HEX);
+    // Update last_payload
+    #if DEBUG 
+      Serial.println("Updating payload_cache...");
+    #endif
+    addToPayloadCache(myPayload->payload_id);
+
+    // Propogate the payload
+    if(myPayload->address != this_node_address) {
+      #if DEBUG
+        Serial.print("forwarding payload for address 0x");
+        Serial.println(myPayload->address, HEX);
+      #endif
+      radio.stopListening();
+      radio.openWritingPipe(MULTI_ADDR);
+      sendPacket(myPayload, sizeof(Payload));
+      #if DEBUG
+        Serial.print("Sending payload with id ");
+        Serial.println(myPayload->payload_id);
+        Serial.print(" and command ");
+        Serial.println(myPayload->command);
+      #endif
+      radio.startListening();
+    }
+
+    if(myPayload->address == MULTI_ADDR || myPayload->address == this_node_address) {
+      // If this payload is for everybody, or us, act on it.
+      
+      #if DEBUG
+        Serial.print("Payload accepted for address 0x");
+        Serial.println(myPayload->address, HEX);
+      #endif
+
       switch(myPayload->command) {
         case PING:
           Serial.println("Someone pinged us!");
@@ -320,7 +382,7 @@ void handlePayload(struct Payload * myPayload) {
           break;
     
         case LED:
-          ledDisplay(myPayload->data[0]);
+          ledDisplay(myPayload->data[0]); // TODO: Make this non-blocking
           break;
     
         case MESS:
@@ -329,37 +391,31 @@ void handlePayload(struct Payload * myPayload) {
           printPrompt();
           break;
     
-        case DEMO:
-          displayDemo();
-          break;
-    
         default:
           Serial.println("Invalid command received.");
           break;
       }
     }
-
-    // Update last_payload
-    Serial.println("Copying myPayload into last_payload");
-    last_payload->payload_id = myPayload->payload_id;
-
-    // Propogate the payload
-    if(myPayload->address != this_node_address && myPayload->address != 0) {
-      Serial.print("forwarding payload for address 0x");
-      Serial.println(myPayload->address, HEX);
-      radio.stopListening();
-      radio.openWritingPipe(multi_addr);
-      radio.multicastWrite(myPayload, sizeof(Payload));
-      Serial.print("Sending payload with id ");
-      Serial.println(myPayload->payload_id);
-      Serial.print(" and command ");
-      Serial.println(myPayload->command);
-      radio.startListening();
-    }
   }
   
   free(myPayload); // Deallocate payload memory block
-  Serial.println("");
+  #if DEBUG
+    Serial.println("");
+  #endif
+}
+
+bool isInCache(int value, int *cache, size_t size) {
+  for(int i = 0; i < size; i++) {
+    if(cache[i] == value) {
+      return true;
+    } 
+  }
+  return false;
+}
+
+uint8_t addToPayloadCache(byte payload_id) {
+  payload_cache[payload_cache_index] = payload_id;
+  payload_cache_index = payload_cache_index > PAYLOAD_CACHE_SIZE - 2 ? 0 : payload_cache_index + 1;
 }
 
 void printPrompt(void){
@@ -391,7 +447,7 @@ where AA in binary = 0b[8][7][6][5][4][3][2][1]
 */
 void ledDisplay(byte pattern) {
   setValue(0x0000);
-  digitalWrite(SROEPin, LOW);
+  digitalWrite(SROE_PIN, LOW);
   if(pattern == 0) {
     word pattern = 0x0000; // variable used in shifting process
     int del = 62; // ms value for delay between LED toggles
@@ -469,24 +525,20 @@ void ledDisplay(byte pattern) {
     Serial.println("LED ON!");
     delay(500);
   }
-  else if(pattern == 6) {
-    setValue(0x0000);
-    Serial.println("LED OFF!");
-  }
-  digitalWrite(SROEPin, HIGH);
+  digitalWrite(SROE_PIN, HIGH);
 }
 
 
 // LED display demo
 void displayDemo() {
-  digitalWrite(SROEPin, LOW);
+  digitalWrite(SROE_PIN, LOW);
   for (int i = 0; i < 100; i++) {
     setValue(0xAAAA);
     delay(125);
     setValue(0x5555);
     delay(125);
   }
-  digitalWrite(SROEPin, HIGH);
+  digitalWrite(SROE_PIN, HIGH);
 }
 
 // Sends word sized value to both SRs & latches output pins
@@ -495,8 +547,8 @@ void setValue(word value) {
   byte Lvalue = value & 0x00FF;
   SPI.transfer(Lvalue);
   SPI.transfer(Hvalue);
-  digitalWrite(SRLatchPin, HIGH);
-  digitalWrite(SRLatchPin, LOW);
+  digitalWrite(SRLATCH_PIN, HIGH);
+  digitalWrite(SRLATCH_PIN, LOW);
 }
 
 // Prints 'help' command
@@ -527,4 +579,15 @@ void welcomeMessage(void) {
   Serial.println(hex_addr);
   Serial.print("\nAll commands must be terminated with a carriage return.\r\n"
       "Type 'help' for a list of available commands.\r\n\n> ");
+}
+
+void printPayloadCache(void) {
+  Serial.print("The payload cache is [");
+  for(int i = 0; i < PAYLOAD_CACHE_SIZE; i++) {
+    Serial.print(payload_cache[i]);
+    if(i != (PAYLOAD_CACHE_SIZE - 1)) {
+      Serial.print(", ");
+    }
+  }
+  Serial.println("]");
 }
