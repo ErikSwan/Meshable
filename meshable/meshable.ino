@@ -262,17 +262,38 @@ void handleSerialData(char inData[], byte index) {
 */
     // write message into message struct
     Message msg;
-    strncpy(msg->data, words, current_word_index);
+    strncpy(msg.content, words, current_word_index);
 
     // message more than 25 characters, split into payloads
     if (current_word_index > MAX_SINGLE_MESSAGE) {
 			int trans_filler = 0;
+			int to_fill = current_word_index;
+			char * tmp_msg = msg.content;
       uint16_t payload_id = random(1000);
 			
-			for (int i=0; i<5; i++) {
+			// first payload
+			transmission[0].payload_id = payload_id;	
+			transmission[0].message_length = 4;
+			transmission[0].message_id = ++payload_id;
+			memcpy(transmission[0].data, msg, MAX_SINGLE_MESSAGE);
+			transfiller += 25; // counts up the msg.content we have used
+			tmp_msg += 22; // move pointer forward
+			to_fill -= 25; // counts down the message.content we still need to use
+			
+			for (int i=1; i<5; i++) {
+				int to_cpy = 0; // # of bytes to put in msg.content
 				transmission[i].payload_id = payload_id;	
 				transmission[i].message_length = 4;
-				transmission[i].message_id = 
+				transmission[i].message_id = ++payload_id;
+
+				// calculate how much data we still need to put in
+				if (to_fill > 28) {
+					to_cpy = 28;
+				} else {
+					to_cpy = 28 - to_fill;
+				}
+
+				memcpy(transmission[i].data, tmp_msg, to_cpy);
 			}	
 			
     }
