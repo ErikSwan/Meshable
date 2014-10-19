@@ -105,7 +105,7 @@ void loop() {
   } else if (!Serial && terminalConnect) {
     terminalConnect = false;
   }
-  ledDisplay(5);
+  //ledDisplay(5);
   networkRead(); // Read from network
   serialRead(); // Read from serial  
 }
@@ -172,8 +172,9 @@ void handleSerialData(char inData[], byte index) {
       uint16_t TOaddr = strtol(words[1], NULL, 16);
 
       if (strncmp(words[2], "-p", 2) == 0) { // Send ping
+        Serial.println(this_node_address);
         struct payload myPayload = {PING, '\0', {'\0'},this_node_address};
-        size_t len = sizeof(PING) + sizeof('\0') * 2;
+        size_t len = sizeof(myPayload);
 
         radio.stopListening();
         radio.openWritingPipe(TOaddr);
@@ -184,7 +185,7 @@ void handleSerialData(char inData[], byte index) {
         if (strspn(words[3], "1234567890") == 1) {
           byte led_patt = (byte) atoi(words[3]);
           struct payload myPayload = {LED, led_patt, {'\0'},this_node_address};
-          size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
+          size_t len = sizeof(myPayload);
 
           radio.stopListening();
           radio.openWritingPipe(TOaddr);
@@ -290,13 +291,17 @@ void handlePayload(struct payload * myPayload) {
     size_t len;
     case PING:
       Serial.println("Someone pinged us!");
-      printPrompt();
       sendPayload = {PONG, '\0', {'\0'},this_node_address};
-      len = sizeof(PONG) + sizeof('\0') * 2 + sizeof(this_node_address);
+      Serial.println("This node address:");
+      Serial.println(this_node_address, HEX);
+      Serial.println("Address ponging back to:");
+      Serial.println(myPayload->from, HEX);
+      len = sizeof(sendPayload);
       radio.stopListening();
       radio.openWritingPipe(myPayload->from);
-      radio.write(&myPayload, len);
+      radio.write(&sendPayload, len);
       radio.startListening();
+      printPrompt();
       break;
 
     case LED:

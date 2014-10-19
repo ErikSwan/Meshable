@@ -104,7 +104,7 @@ void loop() {
   } else if (!Serial && terminalConnect) {
     terminalConnect = false;
   }
-  ledDisplay(5);
+  //ledDisplay(5);
   networkRead(); // Read from network
   serialRead(); // Read from serial  
 }
@@ -260,19 +260,11 @@ void handleSerialData(char inData[], byte index) {
       // LAURENS CODE
         
        else if (strcmp(words[0], "echo") == 0) { // Send LED pattern
-        if (strspn(words[1], "1234567890") == 1) {
           byte led_pattern = (byte) atoi(words[1]);
-          //byte chn = (byte) atoi(words[1]);
-          //struct payload myPayload = {LED, led_patt, {'\0'}};
-          //size_t len = sizeof(LED) + sizeof(led_patt) + sizeof('\0');
-          
+        
+        if (led_pattern > 0 && led_pattern <=10){  
           ledDisplay(led_pattern);
-          //radio.stopListening();
-          //radio.openWritingPipe(this_node_address);
-          //radio.write(&myPayload, len);
-          //radio.startListening();
         }
-
         else {
           Serial.println("  Invalid LED pattern field.");
         }
@@ -356,6 +348,7 @@ void ledDisplay(byte pattern) {
       setValue(pattern);
       delay(del);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 1) {
     word pattern = 0x0000; // variable used in shifting process
@@ -371,6 +364,7 @@ void ledDisplay(byte pattern) {
       setValue(pattern);
       delay(del);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 2) {
     int del = 100;
@@ -394,6 +388,7 @@ void ledDisplay(byte pattern) {
     delay(del);
     setValue(0x0000);
     delay(del);
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 3) {
     word pattern = 0x0101;
@@ -404,6 +399,7 @@ void ledDisplay(byte pattern) {
       pattern = (pattern << 1);
       setValue(pattern);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 4) {
     for (int i = 0; i < 4; i++) {
@@ -412,6 +408,7 @@ void ledDisplay(byte pattern) {
       setValue(0x0000);
       delay(125);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   
   else if(pattern == 5) {
@@ -423,9 +420,31 @@ void ledDisplay(byte pattern) {
       pattern = (pattern << 1);
       setValue(pattern);
     }
+    digitalWrite(SROEPin, HIGH);
   }  
   
-  digitalWrite(SROEPin, HIGH);
+  else if(pattern == 6) {
+    setValue(0xFFFF);
+  }  
+  
+  else if(pattern == 7) {
+    setValue(0xAAAA);
+  }  
+  
+  else if(pattern == 8) {
+    setValue(0x5000);
+  }  
+  
+  else if(pattern == 9) {
+    setValue(0x0001);
+  }  
+  
+  else if(pattern == 10) {
+      setValue(0x0000);
+      digitalWrite(SROEPin, HIGH);
+  }  
+  
+  //digitalWrite(SROEPin, HIGH);
 }
 
 
