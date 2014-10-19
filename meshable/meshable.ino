@@ -177,7 +177,7 @@ void handleSerialData(char inData[], byte index) {
       byte payload_id = random(255);
 
       if (strncmp(words[2], "-p", 2) == 0) { // Send ping
-        Payload myPayload = {payload_id, PING, TOaddr, {'\0'}}; 
+        Payload myPayload = {payload_id, PING, TOaddr, {'\0'}};
 
         radio.stopListening();
         radio.openWritingPipe(multi_addr);
@@ -344,12 +344,12 @@ void handlePayload(struct Payload * myPayload) {
     last_payload->payload_id = myPayload->payload_id;
 
     // Propogate the payload
-    if(myPayload->address != this_node_address) {
+    if(myPayload->address != this_node_address && myPayload->address != 0) {
       Serial.print("forwarding payload for address 0x");
       Serial.println(myPayload->address, HEX);
       radio.stopListening();
       radio.openWritingPipe(multi_addr);
-      radio.multicastWrite(&myPayload, sizeof(myPayload));
+      radio.multicastWrite(myPayload, sizeof(Payload));
       Serial.print("Sending payload with id ");
       Serial.println(myPayload->payload_id);
       Serial.print(" and command ");
