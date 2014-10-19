@@ -59,7 +59,9 @@ int SRLatchPin = 8; // using digital pin 4 for SR latch
 boolean terminalConnect = false; // indicates if the terminal has connected to the board yet
 uint16_t multi_addr = 0x2bc0; // multi cast address
 
-Payload * last_payload = (Payload *) malloc(sizeof(Payload));
+// initialize queue for previously recieved IDs
+int last_ind = 0;
+byte last_payload_arr[5] = {0,0,0,0,0};
 
 // nRF24L01 radio static initializations
 RF24 radio(9,10); // Setup nRF24L01 on SPI bus using pins 9 & 10 as CE & CSN, respectively
@@ -284,6 +286,18 @@ void handleSerialData(char inData[], byte index) {
       Serial.print("Last payload id is ");
       Serial.println(last_payload->payload_id);
   }
+
+    else if (strcmp(words[0], "echo") == 0) { // Send LED pattern
+        if (strspn(words[1], "1234567890") == 1) {
+          byte led_pattern = (byte) atoi(words[1]);
+          ledDisplay(led_pattern);
+
+        }
+
+        else {
+          Serial.println("  Invalid LED pattern field.");
+        }
+    }
 }
 
 
@@ -305,6 +319,7 @@ void handlePayload(struct Payload * myPayload) {
   Serial.println("");
   
   Serial.print("last_payload payload_id is ");
+
   Serial.println(last_payload->payload_id);
 
   if(myPayload->payload_id != last_payload->payload_id) {
@@ -392,7 +407,7 @@ where AA in binary = 0b[8][7][6][5][4][3][2][1]
 void ledDisplay(byte pattern) {
   setValue(0x0000);
   digitalWrite(SROEPin, LOW);
-  if(pattern == 0) {
+if(pattern == 0) {
     word pattern = 0x0000; // variable used in shifting process
     int del = 62; // ms value for delay between LED toggles
 
@@ -407,6 +422,7 @@ void ledDisplay(byte pattern) {
       setValue(pattern);
       delay(del);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 1) {
     word pattern = 0x0000; // variable used in shifting process
@@ -422,6 +438,7 @@ void ledDisplay(byte pattern) {
       setValue(pattern);
       delay(del);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 2) {
     int del = 100;
@@ -445,6 +462,7 @@ void ledDisplay(byte pattern) {
     delay(del);
     setValue(0x0000);
     delay(del);
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 3) {
     word pattern = 0x0101;
@@ -455,6 +473,7 @@ void ledDisplay(byte pattern) {
       pattern = (pattern << 1);
       setValue(pattern);
     }
+    digitalWrite(SROEPin, HIGH);
   }
   else if(pattern == 4) {
     for (int i = 0; i < 4; i++) {
@@ -463,17 +482,41 @@ void ledDisplay(byte pattern) {
       setValue(0x0000);
       delay(125);
     }
-  }
+    digitalWrite(SROEPin, HIGH);
+  }  
   else if(pattern == 5) {
-    setValue(0xFFFF);
-    Serial.println("LED ON!");
-    delay(500);
-  }
+    word pattern = 0x0001;
+    int del = 250;
+    setValue(pattern);
+    for(int i=0; i<16; i++) {
+      delay(del);
+      pattern = (pattern << 1);
+      setValue(pattern);
+    }
+    digitalWrite(SROEPin, HIGH);
+  }  
+  
   else if(pattern == 6) {
-    setValue(0x0000);
-    Serial.println("LED OFF!");
-  }
-  digitalWrite(SROEPin, HIGH);
+    setValue(0xFFFF);
+  }  
+  
+  else if(pattern == 7) {
+    setValue(0xAAAA);
+  }  
+  
+  else if(pattern == 8) {
+    setValue(0x5000);
+  }  
+  
+  else if(pattern == 9) {
+    setValue(0x0001);
+  }  
+  
+  else if(pattern == 10) {
+      setValue(0x0000);
+      digitalWrite(SROEPin, HIGH);
+  }    
+  //digitalWrite(SROEPin, HIGH);
 }
 
 
@@ -517,6 +560,8 @@ void printHelpText() {
   Serial.println("                - [val] - new channel. Valid range: 0-83.");
   Serial.println();
   Serial.println("  radio [on | off] - turn radio on or off");
+  Serial.println("  echo  [data]     - displays LED pattern to your own badge");
+  Serial.println("           - [data] - LED pattern. Valid range: 0-255.");
 }
 
 void welcomeMessage(void) {
